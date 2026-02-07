@@ -72,11 +72,11 @@ Deno.test("ctx.render - throw with invalid first arg", async () => {
 });
 
 Deno.test.only("ctx.render - Steam", async () => {
-  function PromiseDeferrer() {
+  function handlePromiseThrower() {
     const { promise, resolve } = Promise.withResolvers<void>();
     let done = false;
     return {
-      suspender: function () {
+      throw: function () {
         if (done) return;
         throw promise;
       },
@@ -87,10 +87,10 @@ Deno.test.only("ctx.render - Steam", async () => {
     };
   }
 
-  const promiseDeferrer = PromiseDeferrer();
+  const promiseThrower = handlePromiseThrower();
 
   const DelayedComponent = () => {
-    promiseDeferrer.suspender();
+    promiseThrower.throw();
     return <p>Delayed</p>;
   };
   const app = new App()
@@ -105,14 +105,12 @@ Deno.test.only("ctx.render - Steam", async () => {
       ));
   const server = new FakeServer(app.handler());
   const res = await server.get("/");
-  const stream = res.body!;
-  const textStream = stream.pipeThrough(new TextDecoderStream());
 
-  promiseDeferrer.resolve();
-
-  for await (const chunk of textStream) {
-    console.log("👺", chunk);
-  }
+  const rByteStream = res.body!;
+  const rTextStream = rByteStream.pipeThrough(new TextDecoderStream());
+  promiseThrower.resolve();
+  const html = (await Array.fromAsync(rTextStream)).join("");
+  expect(html).toContain("<p>Delayed</p>");
 });
 
 Deno.test("ctx.isPartial - should indicate whether request is partial or not", async () => {
