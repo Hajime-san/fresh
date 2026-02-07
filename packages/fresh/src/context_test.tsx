@@ -110,6 +110,7 @@ Deno.test.only("ctx.render - Steam", async () => {
   const rTextStream = rByteStream.pipeThrough(new TextDecoderStream());
   promiseThrower.resolve();
   const html = (await Array.fromAsync(rTextStream)).join("");
+  console.log(html);
   expect(html).toContain("<p>Delayed</p>");
 });
 
