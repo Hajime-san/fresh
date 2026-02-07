@@ -5,6 +5,7 @@ import { asset } from "fresh/runtime";
 import { FakeServer } from "./test_utils.ts";
 import { BUILD_ID } from "@fresh/build-id";
 import { parseHtml } from "../tests/test_utils.tsx";
+import { Suspense } from "preact/compat";
 
 Deno.test("FreshReqContext.prototype.redirect", () => {
   let res = Context.prototype.redirect("/");
@@ -68,6 +69,50 @@ Deno.test("ctx.render - throw with invalid first arg", async () => {
 
   await res.body?.cancel();
   expect(res.status).toEqual(500);
+});
+
+Deno.test.only("ctx.render - Steam", async () => {
+  function PromiseDeferrer() {
+    const { promise, resolve } = Promise.withResolvers<void>();
+    let done = false;
+    return {
+      suspender: function () {
+        if (done) return;
+        throw promise;
+      },
+      resolve: function () {
+        done = true;
+        resolve();
+      },
+    };
+  }
+
+  const promiseDeferrer = PromiseDeferrer();
+
+  const DelayedComponent = () => {
+    promiseDeferrer.suspender();
+    return <p>Delayed</p>;
+  };
+  const app = new App()
+    .get("/", (ctx) =>
+      ctx.renderStream(
+        <div>
+          <p>No Suspense</p>
+          <Suspense fallback={<div>Loading...</div>}>
+            <DelayedComponent />
+          </Suspense>
+        </div>,
+      ));
+  const server = new FakeServer(app.handler());
+  const res = await server.get("/");
+  const stream = res.body!;
+  const textStream = stream.pipeThrough(new TextDecoderStream());
+
+  promiseDeferrer.resolve();
+
+  for await (const chunk of textStream) {
+    console.log("👺", chunk);
+  }
 });
 
 Deno.test("ctx.isPartial - should indicate whether request is partial or not", async () => {

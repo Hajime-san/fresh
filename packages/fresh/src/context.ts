@@ -27,6 +27,7 @@ import {
   renderRouteComponent,
 } from "./render.ts";
 import { renderToString } from "preact-render-to-string";
+import { renderToReadableStream } from "preact-render-to-string/stream";
 
 const ENCODER = new TextEncoder();
 
@@ -373,6 +374,16 @@ export class Context<State> {
       }
     });
     return new Response(html, responseInit);
+  }
+
+  renderStream(
+    // deno-lint-ignore no-explicit-any
+    vnode: VNode<any> | null,
+    init: ResponseInit | undefined = {},
+    config: LayoutConfig = {},
+  ) {
+    const stream = renderToReadableStream(vnode);
+    return new Response(stream);
   }
 
   /**
