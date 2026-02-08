@@ -26,7 +26,7 @@ import {
   renderAsyncAnyComponent,
   renderRouteComponent,
 } from "./render.ts";
-import { renderToString } from "preact-render-to-string";
+import { renderToString, renderToStringAsync } from "preact-render-to-string";
 import { renderToReadableStream } from "preact-render-to-string/stream";
 
 const ENCODER = new TextEncoder();
@@ -203,177 +203,178 @@ export class Context<State> {
     init: ResponseInit | undefined = {},
     config: LayoutConfig = {},
   ): Promise<Response> {
-    if (arguments.length === 0) {
-      throw new Error(`No arguments passed to: ctx.render()`);
-    } else if (vnode !== null && !isValidElement(vnode)) {
-      throw new Error(`Non-JSX element passed to: ctx.render()`);
-    }
+    return await this.renderStream(vnode, init, config);
+    // if (arguments.length === 0) {
+    //   throw new Error(`No arguments passed to: ctx.render()`);
+    // } else if (vnode !== null && !isValidElement(vnode)) {
+    //   throw new Error(`Non-JSX element passed to: ctx.render()`);
+    // }
 
-    const defs = config.skipInheritedLayouts ? [] : this.#internal.layouts;
-    const appDef = config.skipAppWrapper ? null : this.#internal.app;
-    const props = this as Context<State>;
+    // const defs = config.skipInheritedLayouts ? [] : this.#internal.layouts;
+    // const appDef = config.skipAppWrapper ? null : this.#internal.app;
+    // const props = this as Context<State>;
 
-    // Compose final vnode tree
-    for (let i = defs.length - 1; i >= 0; i--) {
-      const child = vnode;
-      props.Component = () => child;
+    // // Compose final vnode tree
+    // for (let i = defs.length - 1; i >= 0; i--) {
+    //   const child = vnode;
+    //   props.Component = () => child;
 
-      const def = defs[i];
+    //   const def = defs[i];
 
-      const result = await renderRouteComponent(this, def, () => child);
-      if (result instanceof Response) {
-        return result;
-      }
+    //   const result = await renderRouteComponent(this, def, () => child);
+    //   if (result instanceof Response) {
+    //     return result;
+    //   }
 
-      vnode = result;
-    }
+    //   vnode = result;
+    // }
 
-    let appChild = vnode;
-    // deno-lint-ignore no-explicit-any
-    let appVNode: VNode<any>;
+    // let appChild = vnode;
+    // // deno-lint-ignore no-explicit-any
+    // let appVNode: VNode<any>;
 
-    let hasApp = true;
+    // let hasApp = true;
 
-    if (isAsyncAnyComponent(appDef)) {
-      props.Component = () => appChild;
-      const result = await renderAsyncAnyComponent(appDef, props);
-      if (result instanceof Response) {
-        return result;
-      }
+    // if (isAsyncAnyComponent(appDef)) {
+    //   props.Component = () => appChild;
+    //   const result = await renderAsyncAnyComponent(appDef, props);
+    //   if (result instanceof Response) {
+    //     return result;
+    //   }
 
-      appVNode = result;
-    } else if (appDef !== null) {
-      appVNode = h(appDef, {
-        Component: () => appChild,
-        config: this.config,
-        data: null,
-        error: this.error,
-        info: this.info,
-        isPartial: this.isPartial,
-        params: this.params,
-        req: this.req,
-        state: this.state,
-        url: this.url,
-        route: this.route,
-      });
-    } else {
-      hasApp = false;
-      appVNode = appChild ?? h(Fragment, null);
-    }
+    //   appVNode = result;
+    // } else if (appDef !== null) {
+    //   appVNode = h(appDef, {
+    //     Component: () => appChild,
+    //     config: this.config,
+    //     data: null,
+    //     error: this.error,
+    //     info: this.info,
+    //     isPartial: this.isPartial,
+    //     params: this.params,
+    //     req: this.req,
+    //     state: this.state,
+    //     url: this.url,
+    //     route: this.route,
+    //   });
+    // } else {
+    //   hasApp = false;
+    //   appVNode = appChild ?? h(Fragment, null);
+    // }
 
-    const headers = getHeadersFromInit(init);
+    // const headers = getHeadersFromInit(init);
 
-    headers.set("Content-Type", "text/html; charset=utf-8");
-    const responseInit: ResponseInit = {
-      status: init.status ?? 200,
-      headers,
-      statusText: init.statusText,
-    };
+    // headers.set("Content-Type", "text/html; charset=utf-8");
+    // const responseInit: ResponseInit = {
+    //   status: init.status ?? 200,
+    //   headers,
+    //   statusText: init.statusText,
+    // };
 
-    let partialId = "";
-    if (this.url.searchParams.has(PARTIAL_SEARCH_PARAM)) {
-      partialId = crypto.randomUUID();
-      headers.set("X-Fresh-Id", partialId);
-    }
+    // let partialId = "";
+    // if (this.url.searchParams.has(PARTIAL_SEARCH_PARAM)) {
+    //   partialId = crypto.randomUUID();
+    //   headers.set("X-Fresh-Id", partialId);
+    // }
 
-    const html = tracer.startActiveSpan("render", (span) => {
-      span.setAttribute("fresh.span_type", "render");
-      const state = new RenderState(
-        this,
-        this.#buildCache,
-        partialId,
-      );
+    // const html = tracer.startActiveSpan("render", (span) => {
+    //   span.setAttribute("fresh.span_type", "render");
+    //   const state = new RenderState(
+    //     this,
+    //     this.#buildCache,
+    //     partialId,
+    //   );
 
-      if (this.#additionalStyles !== null) {
-        for (let i = 0; i < this.#additionalStyles.length; i++) {
-          const css = this.#additionalStyles[i];
-          state.islandAssets.add(css);
-        }
-      }
+    //   if (this.#additionalStyles !== null) {
+    //     for (let i = 0; i < this.#additionalStyles.length; i++) {
+    //       const css = this.#additionalStyles[i];
+    //       state.islandAssets.add(css);
+    //     }
+    //   }
 
-      try {
-        setRenderState(state);
+    //   try {
+    //     setRenderState(state);
 
-        let html = renderToString(
-          vnode ?? h(Fragment, null),
-        );
+    //     let html = renderToString(
+    //       vnode ?? h(Fragment, null),
+    //     );
 
-        if (hasApp) {
-          appChild = jsxTemplate([html]);
-          html = renderToString(appVNode);
-        }
+    //     if (hasApp) {
+    //       appChild = jsxTemplate([html]);
+    //       html = renderToString(appVNode);
+    //     }
 
-        if (
-          !state.renderedHtmlBody || !state.renderedHtmlHead ||
-          !state.renderedHtmlTag
-        ) {
-          let fallback: VNode = jsxTemplate([html]);
-          if (!state.renderedHtmlBody) {
-            let scripts: VNode | null = null;
+    //     if (
+    //       !state.renderedHtmlBody || !state.renderedHtmlHead ||
+    //       !state.renderedHtmlTag
+    //     ) {
+    //       let fallback: VNode = jsxTemplate([html]);
+    //       if (!state.renderedHtmlBody) {
+    //         let scripts: VNode | null = null;
 
-            if (
-              this.url.pathname !== this.config.basePath + DEV_ERROR_OVERLAY_URL
-            ) {
-              scripts = h(FreshScripts, null) as VNode;
-            }
+    //         if (
+    //           this.url.pathname !== this.config.basePath + DEV_ERROR_OVERLAY_URL
+    //         ) {
+    //           scripts = h(FreshScripts, null) as VNode;
+    //         }
 
-            fallback = h("body", null, fallback, scripts);
-          }
-          if (!state.renderedHtmlHead) {
-            fallback = h(
-              Fragment,
-              null,
-              h("head", null, h("meta", { charset: "utf-8" })),
-              fallback,
-            );
-          }
-          if (!state.renderedHtmlTag) {
-            fallback = h("html", null, fallback);
-          }
+    //         fallback = h("body", null, fallback, scripts);
+    //       }
+    //       if (!state.renderedHtmlHead) {
+    //         fallback = h(
+    //           Fragment,
+    //           null,
+    //           h("head", null, h("meta", { charset: "utf-8" })),
+    //           fallback,
+    //         );
+    //       }
+    //       if (!state.renderedHtmlTag) {
+    //         fallback = h("html", null, fallback);
+    //       }
 
-          html = renderToString(fallback);
-        }
+    //       html = renderToString(fallback);
+    //     }
 
-        return `<!DOCTYPE html>${html}`;
-      } catch (err) {
-        if (err instanceof Error) {
-          span.recordException(err);
-        } else {
-          span.setStatus({
-            code: SpanStatusCode.ERROR,
-            message: String(err),
-          });
-        }
-        throw err;
-      } finally {
-        // Add preload headers
-        const basePath = this.config.basePath;
-        const runtimeUrl = state.buildCache.clientEntry.startsWith(".")
-          ? state.buildCache.clientEntry.slice(1)
-          : state.buildCache.clientEntry;
-        let link = `<${
-          encodeURI(`${basePath}${runtimeUrl}`)
-        }>; rel="modulepreload"; as="script"`;
-        state.islands.forEach((island) => {
-          const specifier = `${basePath}${
-            island.file.startsWith(".") ? island.file.slice(1) : island.file
-          }`;
-          link += `, <${
-            encodeURI(specifier)
-          }>; rel="modulepreload"; as="script"`;
-        });
+    //     return `<!DOCTYPE html>${html}`;
+    //   } catch (err) {
+    //     if (err instanceof Error) {
+    //       span.recordException(err);
+    //     } else {
+    //       span.setStatus({
+    //         code: SpanStatusCode.ERROR,
+    //         message: String(err),
+    //       });
+    //     }
+    //     throw err;
+    //   } finally {
+    //     // Add preload headers
+    //     const basePath = this.config.basePath;
+    //     const runtimeUrl = state.buildCache.clientEntry.startsWith(".")
+    //       ? state.buildCache.clientEntry.slice(1)
+    //       : state.buildCache.clientEntry;
+    //     let link = `<${
+    //       encodeURI(`${basePath}${runtimeUrl}`)
+    //     }>; rel="modulepreload"; as="script"`;
+    //     state.islands.forEach((island) => {
+    //       const specifier = `${basePath}${
+    //         island.file.startsWith(".") ? island.file.slice(1) : island.file
+    //       }`;
+    //       link += `, <${
+    //         encodeURI(specifier)
+    //       }>; rel="modulepreload"; as="script"`;
+    //     });
 
-        if (link !== "") {
-          headers.append("Link", link);
-        }
+    //     if (link !== "") {
+    //       headers.append("Link", link);
+    //     }
 
-        state.clear();
-        setRenderState(null);
+    //     state.clear();
+    //     setRenderState(null);
 
-        span.end();
-      }
-    });
-    return new Response(html, responseInit);
+    //     span.end();
+    //   }
+    // });
+    // return new Response(html, responseInit);
   }
 
   async renderStream(
@@ -455,8 +456,8 @@ export class Context<State> {
       headers.set("X-Fresh-Id", partialId);
     }
 
-    const stream = tracer.startActiveSpan("renderStream", (span) => {
-      span.setAttribute("fresh.span_type", "renderStream");
+    const stream = await tracer.startActiveSpan("render", async (span) => {
+      span.setAttribute("fresh.span_type", "render");
       const state = new RenderState(
         this,
         this.#buildCache,
@@ -474,6 +475,12 @@ export class Context<State> {
         setRenderState(state);
 
         let stream = vnode ?? h(Fragment, null);
+
+        // update render state without consuming runtime scripts
+        const prevHasRuntimeScript = state.hasRuntimeScript;
+        state.hasRuntimeScript = true;
+        await renderToStringAsync(stream);
+        state.hasRuntimeScript = prevHasRuntimeScript;
 
         if (hasApp) {
           appChild = stream;
@@ -511,6 +518,10 @@ export class Context<State> {
           stream = fallback;
         }
         const renderedStream = renderToReadableStream(stream);
+        renderedStream.allReady.catch((err) => {
+          console.error("👺 allReady:", err);
+          throw err
+        });
         const resultStream = renderedStream.pipeThrough(
           new TransformStream({
             start(controller) {

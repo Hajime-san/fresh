@@ -71,7 +71,7 @@ Deno.test("ctx.render - throw with invalid first arg", async () => {
   expect(res.status).toEqual(500);
 });
 
-Deno.test.only("ctx.render - Steam", async () => {
+Deno.test("ctx.render - Stream", async () => {
   function handlePromiseThrower() {
     const { promise, resolve } = Promise.withResolvers<void>();
     let done = false;
@@ -110,7 +110,6 @@ Deno.test.only("ctx.render - Steam", async () => {
   const rTextStream = rByteStream.pipeThrough(new TextDecoderStream());
   promiseThrower.resolve();
   const html = (await Array.fromAsync(rTextStream)).join("");
-  console.log(html);
   expect(html).toContain("<p>Delayed</p>");
 });
 
