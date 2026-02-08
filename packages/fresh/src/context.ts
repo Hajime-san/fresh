@@ -31,6 +31,14 @@ import { renderToReadableStream } from "preact-render-to-string/stream";
 
 const ENCODER = new TextEncoder();
 
+let renderQueue = Promise.resolve();
+
+function enqueueRender<T>(fn: () => Promise<T>): Promise<T> {
+  const next = renderQueue.then(fn, fn);
+  renderQueue = next.then(() => undefined, () => undefined);
+  return next;
+}
+
 export interface Island {
   file: string;
   name: string;
@@ -383,11 +391,12 @@ export class Context<State> {
     init: ResponseInit | undefined = {},
     config: LayoutConfig = {},
   ) {
-    if (arguments.length === 0) {
-      throw new Error(`No arguments passed to: ctx.render()`);
-    } else if (vnode !== null && !isValidElement(vnode)) {
-      throw new Error(`Non-JSX element passed to: ctx.render()`);
-    }
+    return await enqueueRender(async () => {
+      if (arguments.length === 0) {
+        throw new Error(`No arguments passed to: ctx.render()`);
+      } else if (vnode !== null && !isValidElement(vnode)) {
+        throw new Error(`Non-JSX element passed to: ctx.render()`);
+      }
 
     const defs = config.skipInheritedLayouts ? [] : this.#internal.layouts;
     const appDef = config.skipAppWrapper ? null : this.#internal.app;
@@ -477,10 +486,27 @@ export class Context<State> {
         let stream = vnode ?? h(Fragment, null);
 
         // update render state without consuming runtime scripts
-        const prevHasRuntimeScript = state.hasRuntimeScript;
-        state.hasRuntimeScript = true;
+        const prepassState = new RenderState(
+          this,
+          this.#buildCache,
+          partialId,
+        );
+        prepassState.prepass = true;
+        if (this.#additionalStyles !== null) {
+          for (let i = 0; i < this.#additionalStyles.length; i++) {
+            const css = this.#additionalStyles[i];
+            prepassState.islandAssets.add(css);
+          }
+        }
+        setRenderState(prepassState);
+        const prevHasRuntimeScript = prepassState.hasRuntimeScript;
+        prepassState.hasRuntimeScript = true;
         await renderToStringAsync(stream);
-        state.hasRuntimeScript = prevHasRuntimeScript;
+        prepassState.hasRuntimeScript = prevHasRuntimeScript;
+        state.renderedHtmlBody = prepassState.renderedHtmlBody;
+        state.renderedHtmlHead = prepassState.renderedHtmlHead;
+        state.renderedHtmlTag = prepassState.renderedHtmlTag;
+        setRenderState(state);
 
         if (hasApp) {
           appChild = stream;
@@ -518,10 +544,6 @@ export class Context<State> {
           stream = fallback;
         }
         const renderedStream = renderToReadableStream(stream);
-        renderedStream.allReady.catch((err) => {
-          console.error("👺 allReady:", err);
-          throw err
-        });
         const resultStream = renderedStream.pipeThrough(
           new TransformStream({
             start(controller) {
@@ -572,6 +594,7 @@ export class Context<State> {
       }
     });
     return new Response(stream, responseInit);
+    });
   }
 
   /**

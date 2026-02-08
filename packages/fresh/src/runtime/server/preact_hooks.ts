@@ -81,6 +81,7 @@ export class RenderState {
   renderedHtmlBody = false;
   renderedHtmlHead = false;
   hasRuntimeScript = false;
+  prepass = false;
 
   constructor(
     // deno-lint-ignore no-explicit-any
@@ -102,12 +103,40 @@ export class RenderState {
 }
 
 let RENDER_STATE: RenderState | null = null;
+let PREPASS_HEAD_COMPONENTS: Map<string, VNode> | null = null;
 export function setRenderState(state: RenderState | null) {
   RENDER_STATE = state;
+
+  if (state === null) {
+    PREPASS_HEAD_COMPONENTS = null;
+    return;
+  }
+
+  if (state.prepass) {
+    PREPASS_HEAD_COMPONENTS = state.headComponents;
+    return;
+  }
+
+  if (PREPASS_HEAD_COMPONENTS !== null && PREPASS_HEAD_COMPONENTS.size > 0) {
+    PREPASS_HEAD_COMPONENTS.forEach((value, key) => {
+      if (!state.headComponents.has(key)) {
+        state.headComponents.set(key, value);
+      }
+    });
+    PREPASS_HEAD_COMPONENTS = null;
+  }
 }
 
 const oldVNodeHook = options[OptionsType.VNODE];
 options[OptionsType.VNODE] = (vnode) => {
+  if (RENDER_STATE !== null && RENDER_STATE.prepass) {
+    RENDER_STATE.owners.set(vnode, RENDER_STATE!.ownerStack.at(-1)!);
+    if (vnode.type === "a") {
+      setActiveUrl(vnode, RENDER_STATE.ctx.url.pathname);
+    }
+    oldVNodeHook?.(vnode);
+    return;
+  }
   if (RENDER_STATE !== null) {
     RENDER_STATE.owners.set(vnode, RENDER_STATE!.ownerStack.at(-1)!);
     if (vnode.type === "a") {
@@ -171,6 +200,49 @@ function normalizeKey(key: unknown): string {
 
 const oldDiff = options[OptionsType.DIFF];
 options[OptionsType.DIFF] = (vnode) => {
+  if (RENDER_STATE !== null && RENDER_STATE.prepass) {
+    if (typeof vnode.type === "string") {
+      switch (vnode.type) {
+        case "html":
+          RENDER_STATE.renderedHtmlTag = true;
+          break;
+        case "head":
+          RENDER_STATE.renderedHtmlHead = true;
+          break;
+        case "body":
+          RENDER_STATE.renderedHtmlBody = true;
+          break;
+      }
+    } else if (typeof vnode.type === "function" && vnode.type === Partial) {
+      RENDER_STATE.partialDepth++;
+      const name = (vnode.props as PartialProps).name;
+      if (typeof name === "string") {
+        if (RENDER_STATE.encounteredPartials.has(name)) {
+          throw new Error(
+            `Rendered response contains duplicate partial name: "${name}"`,
+          );
+        }
+
+        RENDER_STATE.encounteredPartials.add(name);
+      }
+
+      if (hasIslandOwner(RENDER_STATE, vnode)) {
+        throw new Error(
+          `<Partial> components cannot be used inside islands.`,
+        );
+      }
+    }
+
+    const type = vnode.type;
+    if (
+      type !== "title" && type !== "meta" && type !== "link" &&
+      type !== "script" && type !== "style" && type !== "base" &&
+      type !== "noscript" && type !== "template"
+    ) {
+      oldDiff?.(vnode);
+      return;
+    }
+  }
   if (RENDER_STATE !== null) {
     patcher: if (
       typeof vnode.type === "function" && vnode.type !== Fragment
