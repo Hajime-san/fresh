@@ -1,8 +1,8 @@
 {
   "tasks": {
     "start": "deno serve -A _fresh/server.js",
-    "dev": "vite",
-    "build": "vite build"
+    "dev": "vite --configLoader=native",
+    "build": "vite --configLoader=native build"
   },
   "imports": {
     "@tailwindcss/vite": "npm:@tailwindcss/vite@^4.1.12",

@@ -605,8 +605,8 @@ if (Deno.args.includes("build")) {
 
   if (useVite) {
     denoJson.compilerOptions.types = ["vite/client"];
-    denoJson.tasks.dev = "vite";
-    denoJson.tasks.build = "vite build";
+    denoJson.tasks.dev = "vite --configLoader=native";
+    denoJson.tasks.build = "vite --configLoader=native build";
 
     const vitePluginVersion = await getLatestVersion(
       "@fresh/plugin-vite",

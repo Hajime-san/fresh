@@ -148,8 +148,8 @@ accordingly.
 -     "dev": "deno run -A dev.ts",
 -     "build": "deno run -A dev.ts build",
 -     "preview": "deno run -A main.ts"
-+     "dev": "vite",
-+     "build": "vite build",
++     "dev": "vite --configLoader=native",
++     "build": "vite --configLoader=native build",
 +     "preview": "deno serve -A _fresh/server.js"
    }
   }
