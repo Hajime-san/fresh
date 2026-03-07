@@ -82,6 +82,7 @@
 
     "@tailwindcss/postcss": "npm:@tailwindcss/postcss@^4.1.10",
     "redis": "npm:redis@^5.8.2",
+    "rolldown": "npm:rolldown@^1.0.0-rc.6",
     "rollup": "npm:rollup@^4.55.1",
     "tailwindcss": "npm:tailwindcss@^4.1.10",
     "postcss": "npm:postcss@8.5.6",
