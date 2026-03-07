@@ -7,6 +7,7 @@ import { createBuilder } from "vite";
 const www = path.join(import.meta.dirname!, "..", "www");
 const builder = await createBuilder({
   root: www,
+  configLoader: "native",
 });
 
 await builder.buildApp();

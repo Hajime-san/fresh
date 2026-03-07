@@ -144,6 +144,7 @@ export async function buildVite(
     logLevel: "error",
     root: fixtureDir,
     base: options?.base,
+    configLoader: "native",
     build: {
       emptyOutDir: true,
     },
