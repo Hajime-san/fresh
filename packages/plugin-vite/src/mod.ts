@@ -89,7 +89,11 @@ export function fresh(config?: FreshViteConfig): Plugin[] {
 
         return {
           oxc: {
-            jsx: { runtime: "automatic", importSource: "preact", development: env.command === "serve" }
+            jsx: {
+              runtime: "automatic",
+              importSource: "preact",
+              development: env.command === "serve",
+            },
           },
           // TODO: Remove
           esbuild: {
@@ -142,13 +146,13 @@ export function fresh(config?: FreshViteConfig): Plugin[] {
                     ? config.build.outDir + "/client"
                     : null) ??
                   "_fresh/client",
-                  rolldownOptions: {
-                    preserveEntrySignatures: "strict",
-                    input: {
-                      "client-entry": "fresh:client-entry",
-                    },
+                rolldownOptions: {
+                  preserveEntrySignatures: "strict",
+                  input: {
+                    "client-entry": "fresh:client-entry",
                   },
-                  // TODO: Remove
+                },
+                // TODO: Remove
                 rollupOptions: {
                   preserveEntrySignatures: "strict",
                   input: {
@@ -168,45 +172,45 @@ export function fresh(config?: FreshViteConfig): Plugin[] {
                     ? config.build.outDir + "/server"
                     : null) ??
                   "_fresh/server",
-                  rolldownOptions: {
-                    onwarn(warning, handler) {
-                      // Ignore "use client"; warnings
-                      if (warning.code === "MODULE_LEVEL_DIRECTIVE") {
-                        return;
-                      }
+                rolldownOptions: {
+                  onwarn(warning, handler) {
+                    // Ignore "use client"; warnings
+                    if (warning.code === "MODULE_LEVEL_DIRECTIVE") {
+                      return;
+                    }
 
-                      // Ignore optional export errors
-                      if (
-                        warning.code === "MISSING_EXPORT" &&
-                        warning.id?.startsWith("\0fresh-route::")
-                      ) {
-                        return;
-                      }
+                    // Ignore optional export errors
+                    if (
+                      warning.code === "MISSING_EXPORT" &&
+                      warning.id?.startsWith("\0fresh-route::")
+                    ) {
+                      return;
+                    }
 
-                      // Ignore commonjs optional exports
-                      if (
-                        warning.code === "MISSING_EXPORT" &&
-                        warning.message.includes("__require")
-                      ) {
-                        return;
-                      }
+                    // Ignore commonjs optional exports
+                    if (
+                      warning.code === "MISSING_EXPORT" &&
+                      warning.message.includes("__require")
+                    ) {
+                      return;
+                    }
 
-                      // Ignore this warnings
-                      if (warning.code === "THIS_IS_UNDEFINED") {
-                        return;
-                      }
+                    // Ignore this warnings
+                    if (warning.code === "THIS_IS_UNDEFINED") {
+                      return;
+                    }
 
-                      // Ignore falsy source map errors
-                      if (warning.code === "SOURCEMAP_ERROR") {
-                        return;
-                      }
+                    // Ignore falsy source map errors
+                    if (warning.code === "SOURCEMAP_ERROR") {
+                      return;
+                    }
 
-                      return handler(warning);
-                    },
-                    input: {
-                      "server-entry": "fresh:server_entry",
-                    },
+                    return handler(warning);
                   },
+                  input: {
+                    "server-entry": "fresh:server_entry",
+                  },
+                },
                 // TODO: Remove
                 rollupOptions: {
                   onwarn(warning, handler) {

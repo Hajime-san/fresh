@@ -79,7 +79,15 @@ export async function launchDevServer(
   await withChildProcessServer(
     {
       cwd: dir,
-      args: ["run", "-A", "--cached-only", "npm:vite", "--configLoader=native", "--port", "0"],
+      args: [
+        "run",
+        "-A",
+        "--cached-only",
+        "npm:vite",
+        "--configLoader=native",
+        "--port",
+        "0",
+      ],
       env,
     },
     async (address) => await fn(address, dir),
@@ -98,7 +106,15 @@ export async function spawnDevServer(
   const server = withChildProcessServer(
     {
       cwd: dir,
-      args: ["run", "-A", "--cached-only", "npm:vite", "--configLoader=native", "--port", "0"],
+      args: [
+        "run",
+        "-A",
+        "--cached-only",
+        "npm:vite",
+        "--configLoader=native",
+        "--port",
+        "0",
+      ],
       env,
     },
     async (address) => {
