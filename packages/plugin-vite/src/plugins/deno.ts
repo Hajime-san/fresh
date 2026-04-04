@@ -90,6 +90,7 @@ export function deno(): Plugin {
       // But we still want to ignore everything `vite:resolve` does
       // because we're kinda replacing that plugin here.
       const tmp = await this.resolve(id, importer, options);
+      // https://github.com/rolldown/rolldown/blob/795521bcc828bb41d948cf215eb5ff02e363deb5/packages/rollup-tests/src/ignored-by-unsupported-features.md
       if (tmp && tmp.resolvedBy !== "vite:resolve") {
         if (tmp.external && !/^https?:\/\//.test(tmp.id)) {
           return tmp;
@@ -132,6 +133,7 @@ export function deno(): Plugin {
           return null;
         }
 
+        // https://github.com/rolldown/rolldown/issues/2758
         const type = getDenoType(id, options.attributes.type ?? "default");
         if (
           type !== RequestedModuleType.Default ||
