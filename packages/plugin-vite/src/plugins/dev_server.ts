@@ -1,4 +1,4 @@
-import type { DevEnvironment, Plugin } from "vite";
+import type { DevEnvironment, Plugin, ViteDevServer } from "vite";
 import * as path from "@std/path";
 import { contentType as getStdContentType } from "@std/media-types/content-type";
 import { ASSET_CACHE_BUST_KEY } from "fresh/internal";
@@ -8,6 +8,20 @@ import type { ResolvedFreshViteConfig } from "../utils.ts";
 
 function getContentType(ext: string): string {
   return getStdContentType(ext) ?? "application/octet-stream";
+}
+
+const ROUTE_CSS_IDS = Symbol.for("fresh.routeCssIds");
+
+type ServerWithRouteCssIds = ViteDevServer & {
+  [ROUTE_CSS_IDS]?: Set<string>;
+};
+
+function getTrackedRouteCssIds(server: ViteDevServer): Set<string> {
+  const tracked = server as ServerWithRouteCssIds;
+  if (tracked[ROUTE_CSS_IDS] === undefined) {
+    tracked[ROUTE_CSS_IDS] = new Set();
+  }
+  return tracked[ROUTE_CSS_IDS];
 }
 
 export function devServer(freshConfig: ResolvedFreshViteConfig): Plugin[] {
@@ -129,10 +143,8 @@ export function devServer(freshConfig: ResolvedFreshViteConfig): Plugin[] {
               res.headers.get("Content-Type")?.includes("text/html")
             ) {
               const clientEnv = server.environments.client;
-              const ssrEnv = server.environments.ssr;
-              const collected = await collectCss(
-                "fresh:client-entry",
-                clientEnv,
+              const collected = new Set(
+                await collectCss("fresh:client-entry", clientEnv),
               );
 
               // Also collect CSS from island modules. In dev mode,
@@ -142,28 +154,26 @@ export function devServer(freshConfig: ResolvedFreshViteConfig): Plugin[] {
               for (const mod of clientEnv.moduleGraph.idToModuleMap.values()) {
                 if (mod.id?.includes("fresh-island::")) {
                   const islandCss = await collectCss(mod.id, clientEnv);
-                  collected.push(...islandCss);
+                  islandCss.forEach((css) => collected.add(css));
                 }
               }
 
               // Route/app/layout/error CSS lives behind fresh-route-css virtual
-              // modules that are first discovered in the SSR graph.
-              for (const mod of ssrEnv.moduleGraph.idToModuleMap.values()) {
-                if (mod.id?.includes("fresh-route-css::")) {
-                  let id = mod.id;
-                  if (id.startsWith("\0fresh-route-css::")) {
-                    id = `/@id/fresh-route-css::${
-                      id.slice("\0fresh-route-css::".length)
-                    }.module.css`;
-                  }
-                  const routeCss = await collectCss(id, clientEnv);
-                  collected.push(...routeCss);
-                }
+              // modules. Track those ids when the SSR loader resolves them so
+              // we don't need to scan the full SSR graph on every request.
+              for (const id of getTrackedRouteCssIds(server)) {
+                const routeCssId = id.startsWith("\0fresh-route-css::")
+                  ? `/@id/fresh-route-css::${
+                    id.slice("\0fresh-route-css::".length)
+                  }.module.css`
+                  : id;
+                const routeCss = await collectCss(routeCssId, clientEnv);
+                routeCss.forEach((css) => collected.add(css));
               }
 
               let html = await res.text();
 
-              const styles = collected.join("\n");
+              const styles = Array.from(collected).join("\n");
               html = html.replace("</head>", styles + "</head>");
 
               const newRes = new Response(html, {

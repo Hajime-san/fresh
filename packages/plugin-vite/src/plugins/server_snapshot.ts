@@ -24,6 +24,19 @@ import * as path from "@std/path";
 import { getBuildId } from "./build_id.ts";
 
 const CSS_LANG_REG = /\.(css|less|sass|scss)(\?.*)?$/;
+const ROUTE_CSS_IDS = Symbol.for("fresh.routeCssIds");
+
+type ServerWithRouteCssIds = ViteDevServer & {
+  [ROUTE_CSS_IDS]?: Set<string>;
+};
+
+function getTrackedRouteCssIds(server: ViteDevServer): Set<string> {
+  const tracked = server as ServerWithRouteCssIds;
+  if (tracked[ROUTE_CSS_IDS] === undefined) {
+    tracked[ROUTE_CSS_IDS] = new Set();
+  }
+  return tracked[ROUTE_CSS_IDS];
+}
 
 export function serverSnapshot(options: ResolvedFreshViteConfig): Plugin[] {
   const modName = "fresh:server-snapshot";
@@ -40,6 +53,7 @@ export function serverSnapshot(options: ResolvedFreshViteConfig): Plugin[] {
   const islandSpecByName = new Map<string, string>();
   const routeNamer = new UniqueNamer();
   const routeFileToName = new Map<string, string>();
+  const routeCssCache = new Map<string, string[]>();
 
   // deno-lint-ignore no-explicit-any
   const routes: Map<string, FsRouteFileNoMod<any>> = new Map();
@@ -74,9 +88,18 @@ export function serverSnapshot(options: ResolvedFreshViteConfig): Plugin[] {
       },
       configureServer(viteServer) {
         server = viteServer;
+        const trackedRouteCssIds = getTrackedRouteCssIds(viteServer);
 
         viteServer.watcher.on("all", (ev, filePath) => {
           const { client, ssr } = viteServer.environments;
+          routeCssCache.clear();
+
+          for (const id of trackedRouteCssIds) {
+            const mod = ssr.moduleGraph.getModuleById(id);
+            if (mod !== undefined) {
+              ssr.moduleGraph.invalidateModule(mod);
+            }
+          }
 
           // We can't just check if it's in the client module graph
           // because plugins like tailwindcss import _everything_.
@@ -499,13 +522,17 @@ export function serverSnapshot(options: ResolvedFreshViteConfig): Plugin[] {
           const route = routes.get(name);
           if (route === undefined) return;
 
+          if (server !== undefined) {
+            getTrackedRouteCssIds(server).add(id);
+          }
+
           if (!isDev) {
             return `export default ["__FRESH_CSS_PLACEHOLDER__"];`;
           }
 
           route.css = server === undefined
             ? route.css
-            : await collectRouteCss(server, route.filePath);
+            : await collectRouteCss(server, route.filePath, routeCssCache);
 
           const imports = route.css.map((css) => `import "${css}";`).join("\n");
           return `${imports}
@@ -600,7 +627,11 @@ export default mod.default;
 async function collectRouteCss(
   server: ViteDevServer,
   id: string,
+  cache: Map<string, string[]>,
 ): Promise<string[]> {
+  const cached = cache.get(id);
+  if (cached !== undefined) return cached;
+
   const env = server.environments.ssr;
   const out = new Set<string>();
   const seen = new Set<string>();
@@ -643,7 +674,9 @@ async function collectRouteCss(
     });
   }
 
-  return Array.from(out);
+  const collected = Array.from(out);
+  cache.set(id, collected);
+  return collected;
 }
 
 function walkUp(

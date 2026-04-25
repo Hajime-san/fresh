@@ -180,7 +180,7 @@ export class Context<State> {
   next: () => Promise<Response>;
 
   #buildCache: BuildCache<State>;
-  #additionalStyles: string[] | null = null;
+  #additionalStyles: Set<string> | null = null;
 
   Component!: FunctionComponent;
 
@@ -195,15 +195,12 @@ export class Context<State> {
       if (css == null) return;
 
       if (ctx.#additionalStyles === null) {
-        ctx.#additionalStyles = css.slice();
+        ctx.#additionalStyles = new Set(css);
         return;
       }
 
       for (let i = 0; i < css.length; i++) {
-        const href = css[i];
-        if (!ctx.#additionalStyles.includes(href)) {
-          ctx.#additionalStyles.push(href);
-        }
+        ctx.#additionalStyles.add(css[i]);
       }
     };
   }
@@ -375,8 +372,7 @@ export class Context<State> {
       );
 
       if (this.#additionalStyles !== null) {
-        for (let i = 0; i < this.#additionalStyles.length; i++) {
-          const css = this.#additionalStyles[i];
+        for (const css of this.#additionalStyles) {
           state.islandAssets.add(css);
         }
       }
