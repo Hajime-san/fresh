@@ -1,4 +1,4 @@
-import type { DevEnvironment, Plugin } from "vite";
+import type { DevEnvironment, Plugin, ResolvedServerOptions } from "vite";
 import * as path from "@std/path";
 import { contentType as getStdContentType } from "@std/media-types/content-type";
 import { ASSET_CACHE_BUST_KEY } from "fresh/internal";
@@ -8,6 +8,34 @@ import type { ResolvedFreshViteConfig } from "../utils.ts";
 
 function getContentType(ext: string): string {
   return getStdContentType(ext) ?? "application/octet-stream";
+}
+
+/**
+ * Handling the user config of proxy
+ * https://vite.dev/config/server-options#server-proxy
+ */
+function createProxyUrlMatcher(
+  proxy: ResolvedServerOptions["proxy"],
+): ((url: string) => boolean) | undefined {
+  if (proxy === undefined) return undefined;
+
+  const matchers = Object.keys(proxy).map((context) => {
+    // with RegExp
+    if (context[0] === "^") {
+      const regex = new RegExp(context);
+      return (url: string) => regex.test(url);
+    }
+    // string shorthand
+    return (url: string) => url.startsWith(context);
+  });
+
+  return (url: string) => {
+    for (const matches of matchers) {
+      if (matches(url)) return true;
+    }
+
+    return false;
+  };
 }
 
 export function devServer(freshConfig: ResolvedFreshViteConfig): Plugin[] {
@@ -27,15 +55,25 @@ export function devServer(freshConfig: ResolvedFreshViteConfig): Plugin[] {
         const IGNORE_URLS = new RegExp(
           `^(${base})?/(@(vite|fs|id)|\\.vite)/`,
         );
+        // build proxy url list matcher beofre the request is coming
+        const matchesProxyUrl = createProxyUrlMatcher(
+          server.config.server.proxy,
+        );
 
         server.middlewares.use(async (nodeReq, nodeRes, next) => {
           const serverCfg = server.config.server;
+          const rawUrl = nodeReq.url ?? "/";
+
+          // bypass the request when the proxy specified
+          if (matchesProxyUrl?.(rawUrl)) {
+            return next();
+          }
 
           const protocol = serverCfg.https ? "https" : "http";
           const host = serverCfg.host ? serverCfg.host : "localhost";
           const port = serverCfg.port;
           const url = new URL(
-            `${protocol}://${host}:${port}${nodeReq.url ?? "/"}`,
+            `${protocol}://${host}:${port}${rawUrl}`,
           );
 
           // Don't cache in dev
