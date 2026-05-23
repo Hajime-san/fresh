@@ -485,9 +485,7 @@ integrationTest("vite dev - server.proxy bypasses Fresh routes", async () => {
     if (api3.test({ pathname: url.pathname })) {
       return new Response("api3");
     }
-    return new Response(`${url.pathname}${url.search}`, {
-      status: 500,
-    });
+    throw new Error("unreachable");
   });
 
   await using tmp = await withTmpDir({
