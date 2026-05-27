@@ -538,6 +538,12 @@ server: {
         expect(res.status).toEqual(200);
         expect(await res.text()).toEqual("api3");
       }
+      {
+        // Ensure the bypass is selective — non-proxied routes still hit Fresh.
+        const res = await fetch(`${address}/`);
+        expect(res.status).toEqual(200);
+        expect(await res.text()).toEqual("ok");
+      }
     },
     {
       FRESH_TEST_PROXY_TARGET: `http://127.0.0.1:${proxy.addr.port}`,

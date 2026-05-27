@@ -13,6 +13,11 @@ function getContentType(ext: string): string {
 /**
  * Handling the user config of proxy
  * https://vite.dev/config/server-options#server-proxy
+ *
+ * Note: per-entry `bypass(req, res, options)` callbacks are not supported here.
+ * Requests matched by a proxy key are always short-circuited to Vite's proxy
+ * handler; a `bypass` that returns `false` would still skip Fresh but then
+ * fall through the proxy without being proxied, resulting in a 404.
  */
 function createProxyUrlMatcher(
   proxy: ResolvedServerOptions["proxy"],
@@ -55,7 +60,7 @@ export function devServer(freshConfig: ResolvedFreshViteConfig): Plugin[] {
         const IGNORE_URLS = new RegExp(
           `^(${base})?/(@(vite|fs|id)|\\.vite)/`,
         );
-        // build proxy url list matcher beofre the request is coming
+        // Precompute the proxy URL matcher; proxy config is fixed at server start.
         const matchesProxyUrl = createProxyUrlMatcher(
           server.config.server.proxy,
         );
