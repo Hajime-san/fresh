@@ -592,9 +592,13 @@ integrationTest(
   "vite build - custom rollup entryFileNames in server.js",
   async () => {
     await using res = await buildVite(DEMO_DIR, {
-      rollupOutput: {
-        entryFileNames: "[hash].mjs",
-        chunkFileNames: "[hash].mjs",
+      build: {
+        rollupOptions: {
+          output: {
+            entryFileNames: "[hash].mjs",
+            chunkFileNames: "[hash].mjs",
+          },
+        },
       },
     });
 
