@@ -837,7 +837,7 @@ integrationTest(
 );
 
 integrationTest(
-  "vite build - ssr sourcemap sould be generated collectly",
+  "vite build - ssr sourcemap should be generated collectly",
   async () => {
     await using tmp = await buildVite(DEMO_DIR, {
       environments: {
@@ -879,7 +879,7 @@ integrationTest(
 // https://rollupjs.org/troubleshooting/#warning-sourcemap-is-likely-to-be-incorrect
 // this test could be broke if it will migrate to rolldown
 integrationTest(
-  "vite build - ssr sourcemap sould be generated without warings",
+  "vite build - ssr sourcemap should be generated without warings",
   async () => {
     const warnMsgs = new Set<string>();
     const customLogger = createLogger("error");
