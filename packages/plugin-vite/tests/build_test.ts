@@ -1,3 +1,4 @@
+import { createLogger } from "vite";
 import { expect } from "@std/expect";
 import { walk } from "@std/fs/walk";
 import {
@@ -830,5 +831,78 @@ integrationTest(
         }
       },
     );
+  },
+);
+
+integrationTest(
+  "vite build - ssr sourcemap sould be generated collectly",
+  async () => {
+    await using tmp = await buildVite(DEMO_DIR, {
+      environments: {
+        ssr: {
+          build: {
+            sourcemap: true,
+          },
+        },
+      },
+    });
+
+    const serverAssetsDir = path.join(tmp.tmp, "_fresh", "server", "assets");
+
+    for await (
+      const entry of walk(serverAssetsDir, {
+        exts: [".mjs"],
+        includeDirs: false,
+      })
+    ) {
+      const js = await Deno.readTextFile(entry.path);
+      const match = js.match(/\/\/# sourceMappingURL=(.+)$/m);
+      expect(match).not.toBeNull();
+
+      const mapPath = path.join(path.dirname(entry.path), match![1]);
+      const mapText = await Deno.readTextFile(mapPath);
+      const map = JSON.parse(mapText);
+
+      expect(Array.isArray(map.sources)).toBe(true);
+      expect(map.sources.length).toBeGreaterThan(0);
+      expect(typeof map.mappings).toBe("string");
+      expect(map.mappings.length).toBeGreaterThan(0);
+    }
+  },
+);
+
+// rollup specific test
+// https://rollupjs.org/troubleshooting/#warning-sourcemap-is-likely-to-be-incorrect
+integrationTest(
+  "vite build - ssr sourcemap sould be generated without warings",
+  async () => {
+    const warnMsgs = new Set<string>();
+    const customLogger = createLogger("error");
+    customLogger.warn = (msg) => {
+      customLogger.hasWarned = true;
+      warnMsgs.add(msg);
+    };
+    customLogger.warnOnce = (msg) => {
+      customLogger.hasWarned = true;
+      warnMsgs.add(msg);
+    };
+
+    await using _ = await buildVite(DEMO_DIR, {
+      logLevel: "warn",
+      clearScreen: true,
+      customLogger,
+      environments: {
+        ssr: {
+          build: {
+            sourcemap: true,
+          },
+        },
+      },
+    });
+
+    const sourceMapIncorrectMsg = warnMsgs.has(
+      "[plugin deno] Sourcemap is likely to be incorrect: a plugin (deno) was used to transform files, but didn't generate a sourcemap for the transformation. Consult the plugin documentation for help",
+    );
+    expect(sourceMapIncorrectMsg).not.toBeTruthy();
   },
 );
