@@ -2,6 +2,7 @@ import type { Plugin } from "vite";
 import {
   type Loader,
   MediaType,
+  type ModuleLoadResponse,
   RequestedModuleType,
   ResolutionMode,
   Workspace,
@@ -16,6 +17,8 @@ import { builtinModules } from "node:module";
 const { default: babelReact } = await import("@babel/preset-react");
 
 const BUILTINS = new Set(builtinModules);
+
+const decoder = new TextDecoder();
 
 interface DenoState {
   type: RequestedModuleType;
@@ -180,7 +183,7 @@ export function deno(): Plugin {
           return null;
         }
 
-        const code = new TextDecoder().decode(result.code);
+        const code = decoder.decode(result.code);
 
         const maybeJsx = babelTransform({
           ssr: this.environment.config.consumer === "server",
@@ -188,6 +191,7 @@ export function deno(): Plugin {
           code,
           id: specifier,
           isDev,
+          inputSourceMap: parseSourceMap(result.sourceMap),
         });
         if (maybeJsx !== null) {
           return maybeJsx;
@@ -224,7 +228,7 @@ export function deno(): Plugin {
         return null;
       }
 
-      const code = new TextDecoder().decode(result.code);
+      const code = decoder.decode(result.code);
 
       const maybeJsx = babelTransform({
         ssr: this.environment.config.consumer === "server",
@@ -232,6 +236,7 @@ export function deno(): Plugin {
         id,
         code,
         isDev,
+        inputSourceMap: parseSourceMap(result.sourceMap),
       });
       if (maybeJsx) {
         return maybeJsx;
@@ -279,10 +284,12 @@ export function deno(): Plugin {
           return;
         }
 
-        const code = new TextDecoder().decode(result.code);
+        const code = decoder.decode(result.code);
+        const map = parseSourceMap(result.sourceMap);
 
         return {
           code,
+          map,
         };
       },
     },
@@ -375,13 +382,14 @@ function babelTransform(
     code: string;
     id: string;
     isDev: boolean;
+    inputSourceMap: babel.TransformOptions["inputSourceMap"];
   },
 ) {
   if (!isJsMediaType(options.media)) {
     return null;
   }
 
-  const { ssr, code, id, isDev } = options;
+  const { ssr, code, id, isDev, inputSourceMap } = options;
 
   const presets: babel.PluginItem[] = [];
   if (
@@ -400,6 +408,7 @@ function babelTransform(
   const result = babel.transformSync(code, {
     filename: id,
     babelrc: false,
+    inputSourceMap,
     sourceMaps: "both",
     presets: presets,
     plugins: [httpAbsolute(url)],
@@ -414,4 +423,11 @@ function babelTransform(
   }
 
   return null;
+}
+
+function parseSourceMap(
+  sourceMap: ModuleLoadResponse["sourceMap"],
+): babel.TransformOptions["inputSourceMap"] {
+  if (!sourceMap) return undefined;
+  return JSON.parse(decoder.decode(sourceMap));
 }

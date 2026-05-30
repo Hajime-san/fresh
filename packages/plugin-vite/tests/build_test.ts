@@ -1,4 +1,5 @@
 import { createLogger } from "vite";
+import type { BabelFileResult } from "@babel/core";
 import { expect } from "@std/expect";
 import { walk } from "@std/fs/walk";
 import {
@@ -14,6 +15,7 @@ import {
   launchProd,
   usingEnv,
 } from "./test_utils.ts";
+import { toPosix } from "fresh/internal-dev";
 import * as path from "@std/path";
 import { FRESH_CSS_PLACEHOLDER } from "../src/plugins/server_snapshot.ts";
 
@@ -848,7 +850,6 @@ integrationTest(
     });
 
     const serverAssetsDir = path.join(tmp.tmp, "_fresh", "server", "assets");
-
     for await (
       const entry of walk(serverAssetsDir, {
         exts: [".mjs"],
@@ -857,22 +858,26 @@ integrationTest(
     ) {
       const js = await Deno.readTextFile(entry.path);
       const match = js.match(/\/\/# sourceMappingURL=(.+)$/m);
-      expect(match).not.toBeNull();
-
       const mapPath = path.join(path.dirname(entry.path), match![1]);
       const mapText = await Deno.readTextFile(mapPath);
-      const map = JSON.parse(mapText);
+      const map: NonNullable<BabelFileResult["map"]> = JSON.parse(mapText);
 
-      expect(Array.isArray(map.sources)).toBe(true);
-      expect(map.sources.length).toBeGreaterThan(0);
-      expect(typeof map.mappings).toBe("string");
-      expect(map.mappings.length).toBeGreaterThan(0);
+      // check a specific sourcemap file which contains
+      // the reference of original source file
+      if (entry.name.includes("_fresh-route___tests_feed-")) {
+        expect(
+          map.sources.some((source) =>
+            toPosix(source).endsWith("demo/routes/tests/feed.tsx")
+          ),
+        ).toBe(true);
+      }
     }
   },
 );
 
 // rollup specific test
 // https://rollupjs.org/troubleshooting/#warning-sourcemap-is-likely-to-be-incorrect
+// this test could be broke if it will migrate to rolldown
 integrationTest(
   "vite build - ssr sourcemap sould be generated without warings",
   async () => {
