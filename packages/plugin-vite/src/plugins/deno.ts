@@ -183,7 +183,7 @@ export function deno(): Plugin {
           return null;
         }
 
-        const code = decoder.decode(result.code);
+        const { code, map } = decodeLoadResult(result);
 
         const maybeJsx = babelTransform({
           ssr: this.environment.config.consumer === "server",
@@ -191,7 +191,7 @@ export function deno(): Plugin {
           code,
           id: specifier,
           isDev,
-          inputSourceMap: parseSourceMap(result.sourceMap),
+          inputSourceMap: map,
         });
         if (maybeJsx !== null) {
           return maybeJsx;
@@ -199,6 +199,7 @@ export function deno(): Plugin {
 
         return {
           code,
+          map,
         };
       }
 
@@ -228,7 +229,7 @@ export function deno(): Plugin {
         return null;
       }
 
-      const code = decoder.decode(result.code);
+      const { code, map } = decodeLoadResult(result);
 
       const maybeJsx = babelTransform({
         ssr: this.environment.config.consumer === "server",
@@ -236,7 +237,7 @@ export function deno(): Plugin {
         id,
         code,
         isDev,
-        inputSourceMap: parseSourceMap(result.sourceMap),
+        inputSourceMap: map,
       });
       if (maybeJsx) {
         return maybeJsx;
@@ -244,6 +245,7 @@ export function deno(): Plugin {
 
       return {
         code,
+        map,
       };
     },
     transform: {
@@ -284,8 +286,7 @@ export function deno(): Plugin {
           return;
         }
 
-        const code = decoder.decode(result.code);
-        const map = parseSourceMap(result.sourceMap);
+        const { code, map } = decodeLoadResult(result);
 
         return {
           code,
@@ -425,9 +426,23 @@ function babelTransform(
   return null;
 }
 
-function parseSourceMap(
-  sourceMap: ModuleLoadResponse["sourceMap"],
-): babel.TransformOptions["inputSourceMap"] {
-  if (!sourceMap) return undefined;
-  return JSON.parse(decoder.decode(sourceMap));
+function decodeLoadResult(
+  result: Extract<ModuleLoadResponse, { kind: "module" }>,
+): {
+  code: string;
+  map: babel.TransformOptions["inputSourceMap"];
+} {
+  const map = result.sourceMap && JSON.parse(decoder.decode(result.sourceMap));
+  // If we pass a separate sourcemap object to Vite, remove the loader's
+  // inline data URL so the module only has one sourcemap source of truth.
+  const code = !map
+    ? decoder.decode(result.code)
+    : decoder.decode(result.code).replace(
+      /\r?\n\/\/# sourceMappingURL=data:[^\r\n]+$/,
+      "",
+    );
+  return {
+    code,
+    map,
+  };
 }
